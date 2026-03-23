@@ -1,7 +1,6 @@
 import { promises as fs } from 'fs';
 import grayMatter from 'gray-matter';
 import { dirname, relative, resolve } from 'path';
-import { Browser } from 'puppeteer';
 import { Config } from './config';
 import { generateOutput } from './generate-output';
 import { getHtml } from './get-html';
@@ -19,10 +18,8 @@ export const convertMdToPdf = async (
 	config: Config,
 	{
 		args = {} as CliArgs,
-		browser,
 	}: {
 		args?: CliArgs;
-		browser?: Browser;
 	} = {},
 ) => {
 	const mdFileContent =
@@ -61,7 +58,7 @@ export const convertMdToPdf = async (
 		}
 	}
 
-	const jsonArgs = new Set(['--marked-options', '--pdf-options', '--launch-options']);
+	const jsonArgs = new Set(['--marked-options', '--pdf-options']);
 
 	// merge cli args into config
 	for (const arg of Object.entries(args)) {
@@ -94,7 +91,7 @@ export const convertMdToPdf = async (
 
 	const relativePath = 'path' in input ? relative(config.basedir, input.path) : '.';
 
-	const output = await generateOutput(html, relativePath, config, browser);
+	const output = await generateOutput(html, relativePath, config);
 
 	if (!output) {
 		if (config.devtools) {

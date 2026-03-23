@@ -6,16 +6,13 @@
 import arg from 'arg';
 import chalk from 'chalk';
 import { watch, WatchOptions } from 'chokidar';
-import getPort from 'get-port';
 import getStdin from 'get-stdin';
 import Listr from 'listr';
 import path from 'path';
 import { PackageJson } from '.';
 import { Config, defaultConfig } from './lib/config';
-import { closeBrowser } from './lib/generate-output';
 import { help } from './lib/help';
 import { convertMdToPdf } from './lib/md-to-pdf';
-import { closeServer, serveDirectory } from './lib/serve-dir';
 import { validateNodeVersion } from './lib/validate-node-version';
 
 // --
@@ -36,14 +33,13 @@ export const cliFlags = arg({
 	'--marked-options': String,
 	'--html-pdf-options': String,
 	'--pdf-options': String,
-	'--launch-options': String,
 	'--gray-matter-options': String,
-	'--port': Number,
 	'--md-file-encoding': String,
 	'--stylesheet-encoding': String,
 	'--as-html': Boolean,
 	'--config-file': String,
 	'--devtools': Boolean,
+	'--chrome-path': String,
 
 	// aliases
 	'-h': '--help',
@@ -108,32 +104,16 @@ async function main(args: typeof cliFlags, config: Config) {
 		}
 	}
 
-	/**
-	 * 3. Start the file server.
-	 */
-
 	if (args['--basedir']) {
 		config.basedir = args['--basedir'];
 	}
 
-	config.port = args['--port'] ?? (await getPort());
-
-	const server = await serveDirectory(config);
-
 	/**
-	 * 4. Either process stdin or create a Listr task for each file.
+	 * 3. Either process stdin or create a Listr task for each file.
 	 */
 
 	if (stdin) {
-		await convertMdToPdf({ content: stdin }, config, { args })
-			.finally(async () => {
-				await closeBrowser();
-				await closeServer(server);
-			})
-			.catch((error: Error) => {
-				throw error;
-			});
-
+		await convertMdToPdf({ content: stdin }, config, { args });
 		return;
 	}
 
@@ -155,17 +135,9 @@ async function main(args: typeof cliFlags, config: Config) {
 				watch(files, watchOptions).on('change', async (file) =>
 					new Listr([getListrTask(file)], { exitOnError: false }).run().catch(console.error),
 				);
-			} else {
-				await closeBrowser();
-				await closeServer(server);
 			}
 		})
 		.catch((error: Error) => {
-			/**
-			 * In watch mode the error needs to be shown immediately because the `main` function's catch handler will never execute.
-			 *
-			 * @todo is this correct or does `main` actually finish and the process is just kept alive because of the file server?
-			 */
 			if (args['--watch']) {
 				return console.error(error);
 			}

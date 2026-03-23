@@ -1,12 +1,9 @@
 #!/usr/bin/env node
 
-import getPort from 'get-port';
-import puppeteer from 'puppeteer';
 import { Config, defaultConfig, HtmlConfig, PdfConfig } from './lib/config';
 import { HtmlOutput, Output, PdfOutput } from './lib/generate-output';
 import { getDir } from './lib/helpers';
 import { convertMdToPdf } from './lib/md-to-pdf';
-import { closeServer, serveDirectory } from './lib/serve-dir';
 
 type Input = ContentInput | PathInput;
 
@@ -31,10 +28,6 @@ export async function mdToPdf(input: Input, config: Partial<Config> = {}): Promi
 		throw new Error('The input is missing one of the properties "content" or "path".');
 	}
 
-	if (!config.port) {
-		config.port = await getPort();
-	}
-
 	if (!config.basedir) {
 		config.basedir = 'path' in input ? getDir(input.path) : process.cwd();
 	}
@@ -49,16 +42,7 @@ export async function mdToPdf(input: Input, config: Partial<Config> = {}): Promi
 		pdf_options: { ...defaultConfig.pdf_options, ...config.pdf_options },
 	};
 
-	const server = await serveDirectory(mergedConfig);
-
-	const browser = await puppeteer.launch({ devtools: config.devtools, ...config.launch_options });
-
-	const pdf = await convertMdToPdf(input, mergedConfig, { browser });
-
-	await browser.close();
-	await closeServer(server);
-
-	return pdf;
+	return convertMdToPdf(input, mergedConfig);
 }
 
 export default mdToPdf;

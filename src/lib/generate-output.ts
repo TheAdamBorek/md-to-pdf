@@ -1,7 +1,8 @@
-import { join, posix, sep } from 'path';
-import puppeteer, { Browser } from 'puppeteer';
+import { execSync } from 'child_process';
+import { promises as fs } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
 import { Config, HtmlConfig, PdfConfig } from './config';
-import { isHttpUrl } from './is-http-url';
 
 export type Output = PdfOutput | HtmlOutput;
 
@@ -18,99 +19,36 @@ interface BasicOutput {
 }
 
 /**
- * Store a single browser instance reference so that we can re-use it.
+ * Generate the output (either PDF or HTML) using Chrome's --print-to-pdf.
  */
-let browserPromise: Promise<Browser> | undefined;
-
-/**
- * Close the browser instance.
- */
-export const closeBrowser = async () => (await browserPromise)?.close();
-
-/**
- * Generate the output (either PDF or HTML).
- */
-export async function generateOutput(
-	html: string,
-	relativePath: string,
-	config: PdfConfig,
-	browserRef?: Browser,
-): Promise<PdfOutput>;
-export async function generateOutput(
-	html: string,
-	relativePath: string,
-	config: HtmlConfig,
-	browserRef?: Browser,
-): Promise<HtmlOutput>;
-export async function generateOutput(
-	html: string,
-	relativePath: string,
-	config: Config,
-	browserRef?: Browser,
-): Promise<Output>;
-export async function generateOutput(
-	html: string,
-	relativePath: string,
-	config: Config,
-	browserRef?: Browser,
-): Promise<Output> {
-	async function getBrowser() {
-		if (browserRef) {
-			return browserRef;
-		}
-
-		if (!browserPromise) {
-			browserPromise = puppeteer.launch({ devtools: config.devtools, ...config.launch_options });
-		}
-
-		return browserPromise;
+export async function generateOutput(html: string, relativePath: string, config: PdfConfig): Promise<PdfOutput>;
+export async function generateOutput(html: string, relativePath: string, config: HtmlConfig): Promise<HtmlOutput>;
+export async function generateOutput(html: string, relativePath: string, config: Config): Promise<Output>;
+export async function generateOutput(html: string, _relativePath: string, config: Config): Promise<Output> {
+	if (config.as_html) {
+		return { filename: config.dest, content: html };
 	}
 
-	const browser = await getBrowser();
+	const tempDir = tmpdir();
+	const htmlPath = join(tempDir, `md-to-pdf-${Date.now()}.html`);
+	const pdfPath = join(tempDir, `md-to-pdf-${Date.now()}.pdf`);
 
-	const page = await browser.newPage();
+	await fs.writeFile(htmlPath, html);
 
-	const urlPathname = join(relativePath, 'index.html').split(sep).join(posix.sep);
+	try {
+		const chrome = config.chrome_path;
 
-	// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-	await page.goto(`http://localhost:${config.port!}/${urlPathname}`); // make sure relative paths work as expected
-	await page.setContent(html); // overwrite the page content with what was generated from the markdown
+		execSync(
+			`"${chrome}" --headless --print-to-pdf="${pdfPath}" --no-margins --no-pdf-header-footer --disable-gpu "file://${htmlPath}"`,
+			{ stdio: 'ignore' },
+		);
 
-	for (const stylesheet of config.stylesheet) {
-		await page.addStyleTag(isHttpUrl(stylesheet) ? { url: stylesheet } : { path: stylesheet });
+		const content = await fs.readFile(pdfPath);
+
+		return { filename: config.dest, content };
+	} finally {
+		// clean up temp files
+		await fs.unlink(htmlPath).catch(() => {});
+		await fs.unlink(pdfPath).catch(() => {});
 	}
-
-	if (config.css) {
-		await page.addStyleTag({ content: config.css });
-	}
-
-	for (const scriptTagOptions of config.script) {
-		await page.addScriptTag(scriptTagOptions);
-	}
-
-	/**
-	 * Trick to wait for network to be idle.
-	 *
-	 * @todo replace with page.waitForNetworkIdle once exposed
-	 * @see https://github.com/GoogleChrome/puppeteer/issues/3083
-	 */
-	await Promise.all([
-		page.waitForNavigation({ waitUntil: 'networkidle0' }),
-		page.evaluate(() => history.pushState(undefined, '', '#')) /* eslint no-undef: off */,
-	]);
-
-	let outputFileContent: string | Buffer = '';
-
-	if (config.devtools) {
-		await new Promise((resolve) => page.on('close', resolve));
-	} else if (config.as_html) {
-		outputFileContent = await page.content();
-	} else {
-		await page.emulateMediaType(config.page_media_type);
-		outputFileContent = await page.pdf(config.pdf_options);
-	}
-
-	await page.close();
-
-	return config.devtools ? (undefined as any) : { filename: config.dest, content: outputFileContent };
 }

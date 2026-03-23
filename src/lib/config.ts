@@ -2,7 +2,6 @@ import { WatchOptions } from 'chokidar';
 import { GrayMatterOption } from 'gray-matter';
 import { marked } from 'marked';
 import { resolve } from 'path';
-import { FrameAddScriptTagOptions, launch, PDFOptions } from 'puppeteer';
 
 export const defaultConfig: Config = {
 	basedir: process.cwd(),
@@ -15,7 +14,6 @@ export const defaultConfig: Config = {
 	highlight_style: 'github',
 	marked_options: {},
 	pdf_options: {
-		printBackground: true,
 		format: 'a4',
 		margin: {
 			top: '30mm',
@@ -24,7 +22,7 @@ export const defaultConfig: Config = {
 			left: '20mm',
 		},
 	},
-	launch_options: {},
+	chrome_path: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
 	gray_matter_options: {
 		engines: {
 			javascript: () =>
@@ -59,6 +57,15 @@ export interface HtmlConfig extends BasicConfig {
 	as_html: true;
 }
 
+export interface PdfOptions {
+	format?: string;
+	margin?: { top?: string; right?: string; bottom?: string; left?: string } | string;
+	printBackground?: boolean;
+	headerTemplate?: string;
+	footerTemplate?: string;
+	displayHeaderFooter?: boolean;
+}
+
 interface BasicConfig {
 	/**
 	 * Base directory to be served by the file server.
@@ -72,8 +79,6 @@ interface BasicConfig {
 
 	/**
 	 * List of css files to use for styling.
-	 *
-	 * @todo change to `FrameAddStyleTagOptions` (will be a breaking change)
 	 */
 	stylesheet: string[];
 
@@ -83,11 +88,9 @@ interface BasicConfig {
 	css: string;
 
 	/**
-	 * List of scripts to load into the page.
-	 *
-	 * @see https://github.com/puppeteer/puppeteer/blob/main/docs/api.md#pageaddscripttagoptions
+	 * List of script URLs or paths to load into the page.
 	 */
-	script: FrameAddScriptTagOptions[];
+	script: string[];
 
 	/**
 	 * Name of the HTML Document.
@@ -119,18 +122,14 @@ interface BasicConfig {
 	marked_options: marked.MarkedOptions;
 
 	/**
-	 * PDF options for Puppeteer.
-	 *
-	 * @see https://github.com/GoogleChrome/puppeteer/blob/master/docs/api.md#pagepdfoptions
+	 * PDF options.
 	 */
-	pdf_options: PDFOptions;
+	pdf_options: PdfOptions;
 
 	/**
-	 * Launch options for Puppeteer.
-	 *
-	 * @see https://github.com/GoogleChrome/puppeteer/blob/master/docs/api.md#puppeteerlaunchoptions
+	 * Path to the Chrome/Chromium executable.
 	 */
-	launch_options: PuppeteerLaunchOptions;
+	chrome_path: string;
 
 	/**
 	 * Options for gray-matter (front-matter parser).
@@ -162,17 +161,13 @@ interface BasicConfig {
 
 	/**
 	 * Options to pass to Chokidar's `watch` call.
-	 *
-	 * This is specifically useful when running into issues when editor plugins trigger additional saves after the initial save.
 	 */
 	watch_options?: WatchOptions;
 
 	/**
-	 * Custm Extensions to be passed to marked.
+	 * Custom Extensions to be passed to marked.
 	 *
 	 * @see https://marked.js.org/using_pro#extensions
 	 */
 	marked_extensions: marked.MarkedExtension[];
 }
-
-export type PuppeteerLaunchOptions = Parameters<typeof launch>[0];

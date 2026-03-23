@@ -1,5 +1,5 @@
 import { parse, resolve } from 'path';
-import { PDFOptions } from 'puppeteer';
+import { PdfOptions } from './config';
 
 /**
  * Get the directory that a file is in.
@@ -9,7 +9,7 @@ export const getDir = (filePath: string) => resolve(parse(filePath).dir);
 /**
  * Get a margin object from a CSS-like margin string.
  */
-export const getMarginObject = (margin: string): PDFOptions['margin'] => {
+export const getMarginObject = (margin: string): PdfOptions['margin'] => {
 	if (typeof margin !== 'string') {
 		throw new TypeError(`margin needs to be a string.`);
 	}

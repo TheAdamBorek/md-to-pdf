@@ -11,6 +11,20 @@ export const getMarked = (options: marked.MarkedOptions, extensions: marked.Mark
 		langPrefix: 'hljs ',
 		...options,
 	});
-	marked.use(...extensions);
+
+	// Render mermaid code blocks as <div class="mermaid"> instead of <pre><code>
+	const mermaidExtension: marked.MarkedExtension = {
+		renderer: {
+			code(code: string, language: string | undefined) {
+				if (language === 'mermaid') {
+					return `<div class="mermaid">${code}</div>`;
+				}
+
+				return false as any; // fall back to default renderer
+			},
+		},
+	};
+
+	marked.use(mermaidExtension, ...extensions);
 	return marked;
 };
